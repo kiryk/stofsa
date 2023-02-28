@@ -17,8 +17,8 @@ struct state {
 
 int cmp_state(struct state *key, struct state *dat)
 {
-	struct state *ktr = key->trans;
-	struct state *dtr = dat->trans;
+	struct trans *ktr = key->trans;
+	struct trans *dtr = dat->trans;
 
 	int diff;
 
@@ -39,9 +39,9 @@ int cmp_state(struct state *key, struct state *dat)
 
 void add_trans(struct state *src, struct state *dst, int rune)
 {
-	struct transition *tr = malloc(sizeof(*tr));
+	struct trans *tr = malloc(sizeof(*tr));
 
-	tr->next = src->strans;
+	tr->next = src->trans;
 	src->trans = tr;
 	tr->rune = rune;
 	tr->state = dst;
@@ -49,7 +49,7 @@ void add_trans(struct state *src, struct state *dst, int rune)
 
 void free_state(struct state *st)
 {
-	struct transition *tr = st->trans;
+	struct trans *tr = st->trans;
 
 	for (; tr; tr = tr->next) {
 		free_state(tr->state);
@@ -60,4 +60,9 @@ void free_state(struct state *st)
 
 int main()
 {
+	struct state unique; /* points to unique states */
+	char word[50];
+	while (scanf("%s", word) >= 0)
+		;
+	exit(0);
 }
