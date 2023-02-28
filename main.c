@@ -15,11 +15,8 @@ struct state {
 	int accepts;
 };
 
-int cmp_state(const void *keyp, const void *datp)
+int cmp_state(struct state *key, struct state *dat)
 {
-	const struct state *key = keyp;
-	const struct state *dat = datp;
-
 	struct state *ktr = key->trans;
 	struct state *dtr = dat->trans;
 
@@ -38,6 +35,27 @@ int cmp_state(const void *keyp, const void *datp)
 	if (dtr)
 		return -1;
 	return 0;
+}
+
+void add_trans(struct state *src, struct state *dst, int rune)
+{
+	struct transition *tr = malloc(sizeof(*tr));
+
+	tr->next = src->strans;
+	src->trans = tr;
+	tr->rune = rune;
+	tr->state = dst;
+}
+
+void free_state(struct state *st)
+{
+	struct transition *tr = st->trans;
+
+	for (; tr; tr = tr->next) {
+		free_state(tr->state);
+		free(tr);
+	}
+	free(st);
 }
 
 int main()
