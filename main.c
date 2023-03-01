@@ -3,22 +3,6 @@
 
 #define UtfMax 7
 
-struct state;
-struct trans;
-
-struct trans {
-	struct trans *next;
-	struct state *state;
-	int rune;
-};
-
-struct state {
-	struct trans *trans;
-	int id;
-	int indeg;
-	int accepts;
-};
-
 /* calculate the number of extra bytes */
 #define Extra(ch) ( \
 	((ch) & 0x80) == 0x00? 0 : \
@@ -36,6 +20,27 @@ struct state {
 	(ch) <= 0x1fffff?   4 : \
 	(ch) <= 0x3ffffff?  5 : \
 	(ch) <= 0x7fffffff? 6 : -1)
+
+struct state;
+struct trans;
+
+struct trans {
+	struct trans *next;
+	struct state *state;
+	int rune;
+};
+
+struct state {
+	struct trans *trans;
+	int id;
+	int indeg;
+	int accepts;
+};
+
+struct btree {
+	struct btree *less, *more;
+	struct state *state;
+};
 
 int utf8_to_int(char *s)
 {
@@ -94,6 +99,40 @@ void utf8_decode(int *runes, char *s)
 	runes[j] = 0;
 }
 
+struct btree *btree_insert(struct btree *bt, struct state *st)
+{
+	int cmp_state(struct state *key, struct state *dat);
+	int diff;
+
+	if (!bt) {
+		bt = calloc(1, sizeof(*bt));
+		bt->state = st;
+	} else {
+		diff = cmp_state(st, bt->state);
+		if (diff < 0)
+			bt->less = btree_insert(bt->less, st);
+		else if (diff > 0)
+			bt->more = btree_insert(bt->more, st);
+	}
+	return bt;
+}
+
+struct state *btree_search(struct btree *bt, struct state *st)
+{
+	int cmp_state(struct state *key, struct state *dat);
+	int diff;
+
+	if (bt) {
+		diff = cmp_state(st, bt->state);
+		if (diff < 0)
+			return btree_search(bt->less, st);
+		else if (diff > 0)
+			return btree_search(bt->more, st);
+		return bt->state;
+	}
+	return 0;
+}
+
 int cmp_state(struct state *key, struct state *dat)
 {
 	struct trans *ktr = key->trans;
@@ -101,6 +140,8 @@ int cmp_state(struct state *key, struct state *dat)
 
 	int diff;
 
+	if (key == dat)
+		return 0;
 	if ((diff = dat->accepts - key->accepts) != 0)
 		return diff;
 	while (ktr && dtr) {
@@ -122,6 +163,15 @@ void add_trans(struct state *src, struct state *dst, int rune)
 {
 	struct trans *tr = calloc(1, sizeof(*tr));
 
+	if (src->trans && src->trans->rune > rune) {
+		char s[UtfMax], t[UtfMax];
+		utf8_from_int(s, src->trans->rune);
+		utf8_from_int(t, rune);
+		fprintf(stderr, "error: unsorted input data (%s = %d, %s = %d)\n",
+		        s, src->trans->rune,
+						t, rune);
+		exit(1);
+	}
 	tr->next = src->trans;
 	src->trans = tr;
 	tr->rune = rune;
@@ -183,32 +233,35 @@ struct state *get_last(struct state *st, int *s, int *last)
 	return st;
 }
 
-void unify_state(struct state *uniq, struct state *st)
+struct btree *unify_state(struct btree *uniq, struct state *st)
 {
-	struct state *last = st->trans->state;
+	struct state *same, *last = st->trans->state;
 	struct trans *tr;
 
 	if (last->trans)
 		unify_state(uniq, last);
-	for (tr = uniq->trans; tr; tr = tr->next) {
+	/*for (tr = uniq->trans; tr; tr = tr->next) {
 		if (cmp_state(last, tr->state) == 0)
 			break;
-	}
-	if (tr) {
-		tr->state->indeg++;
+	}*/
+	same = btree_search(uniq, last);
+	if (same) {
+		same->indeg++;
 		free_state(st->trans->state);
-		st->trans->state = tr->state;
+		st->trans->state = same;
 	} else {
-		add_trans(uniq, last, 0);
+		/*add_trans(uniq, last, 0);*/
+		uniq = btree_insert(uniq, last);
 	}
+	return uniq;
 }
 
 int main()
 {
-	struct state uniq = {}; /* points to unique states */
+	struct btree *uniq = 0; /* points to unique states */
 	struct state fsa = {};  /* the FSA being built */
 	struct state *last;
-	int length;
+	int length, i = 0;
 	int runes[128];
 	char word[128];
 
@@ -216,10 +269,10 @@ int main()
 		utf8_decode(runes, word);
 		last = get_last(&fsa, runes, &length);
 		if (last->trans)
-			unify_state(&uniq, last);
+			uniq = unify_state(uniq, last);
 		add_string(last, runes+length);
 	}
-	unify_state(&uniq, &fsa);
+	uniq = unify_state(uniq, &fsa);
 	print_state(&fsa);
 	exit(0);
 }
