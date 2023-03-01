@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#define UtfMax 7
+
 struct state;
 struct trans;
 
@@ -17,7 +19,80 @@ struct state {
 	int accepts;
 };
 
-int max_id = 0;
+/* calculate the number of extra bytes */
+#define Extra(ch) ( \
+	((ch) & 0x80) == 0x00? 0 : \
+	((ch) & 0xe0) == 0xc0? 1 : \
+	((ch) & 0xf0) == 0xe0? 2 : \
+	((ch) & 0xf8) == 0xf0? 3 : \
+	((ch) & 0xfc) == 0xf8? 4 : \
+	((ch) & 0xfe) == 0xfc? 5 : -1)
+
+/* calculate the number of bytes needed to encode a character */
+#define Bytes(ch) ( \
+	(ch) <= 0x7f?       1 : \
+	(ch) <= 0x7ff?      2 : \
+	(ch) <= 0xffff?     3 : \
+	(ch) <= 0x1fffff?   4 : \
+	(ch) <= 0x3ffffff?  5 : \
+	(ch) <= 0x7fffffff? 6 : -1)
+
+int utf8_to_int(char *s)
+{
+	int n = Extra(*s);
+	int ch;
+
+	/* read value from the header */
+	if (n == 0)
+		ch = *s & 0x7f;
+	else if (n > 0)
+		ch = *s & (0x1f >> n);
+	else
+		return -1;
+
+	/* read values from the extra bytes */
+	while (n-- > 0) {
+		if ((*++s & 0xc0) != 0x80)
+			return -1;
+		ch = (ch << 6) | *s & 0x3f;
+	}
+
+	return ch;
+}
+
+char *utf8_from_int(char *s, int ch)
+{
+	int n = Bytes(ch);
+	int i;
+
+	if (n <= 0) {
+		n = 0;
+	} else if (n == 1) {
+		s[0] = ch;
+	} else {
+		for (i = n-1; i > 0; i--) {
+			s[i] = 0x80 | (ch & 0x3f); /* 0x10XXXXXX */
+			ch >>= 6;
+		}
+		s[0] = 0;
+		for (i = 0; i < n; i++)
+			s[0] = (s[0] >> 1) | 0x80;
+		s[0] |= (ch & 0xff);
+	}
+
+	s[n] = '\0';
+
+	return s;
+}
+
+void utf8_decode(int *runes, char *s)
+{
+	int ch, i, j;
+
+	for (i = j = 0; s[i]; i += 1+Extra(s[i]), j++)
+		runes[j] = utf8_to_int(s+i);
+	runes[j] = 0;
+}
 
 int cmp_state(struct state *key, struct state *dat)
 {
@@ -26,7 +101,7 @@ int cmp_state(struct state *key, struct state *dat)
 
 	int diff;
 
-  if ((diff = dat->accepts - key->accepts) != 0)
+	if ((diff = dat->accepts - key->accepts) != 0)
 		return diff;
 	while (ktr && dtr) {
 		if ((diff = ktr->rune - dtr->rune) != 0)
@@ -71,15 +146,18 @@ void free_state(struct state *st)
 void print_state(struct state *st)
 {
 	struct trans *tr;
+	char utf[UtfMax];
 
 	for (tr = st->trans; tr; tr = tr->next)
-		printf("%d %d %c\n", st->id, tr->state->id, tr->rune);
+		printf("%d %d %s\n", st->id, tr->state->id, utf8_from_int(utf, tr->rune));
 	for (tr = st->trans; tr; tr = tr->next)
 		print_state(tr->state);
 }
 
-void add_string(struct state *st, char *s)
+void add_string(struct state *st, int *s)
 {
+	static int max_id = 0;
+
 	struct state *nst;
 	int i;
 
@@ -91,7 +169,7 @@ void add_string(struct state *st, char *s)
 	st->accepts = 1;
 }
 
-struct state *get_last(struct state *st, char *s, int *last)
+struct state *get_last(struct state *st, int *s, int *last)
 {
 	struct trans *tr = st->trans;
 	int i;
@@ -131,13 +209,15 @@ int main()
 	struct state fsa = {};  /* the FSA being built */
 	struct state *last;
 	int length;
-	char word[50];
+	int runes[128];
+	char word[128];
 
 	while (scanf("%s", word) >= 0) {
-		last = get_last(&fsa, word, &length);
+		utf8_decode(runes, word);
+		last = get_last(&fsa, runes, &length);
 		if (last->trans)
 			unify_state(&uniq, last);
-		add_string(last, word+length);
+		add_string(last, runes+length);
 	}
 	unify_state(&uniq, &fsa);
 	print_state(&fsa);
