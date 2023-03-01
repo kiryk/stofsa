@@ -12,8 +12,12 @@ struct trans {
 
 struct state {
 	struct trans *trans;
+	int id;
+	int indeg;
 	int accepts;
 };
+
+int max_id = 0;
 
 int cmp_state(struct state *key, struct state *dat)
 {
@@ -47,12 +51,15 @@ void add_trans(struct state *src, struct state *dst, int rune)
 	src->trans = tr;
 	tr->rune = rune;
 	tr->state = dst;
+	dst->indeg++;
 }
 
 void free_state(struct state *st)
 {
 	struct trans *tr, *next;
 
+	if (--st->indeg > 0)
+		return;
 	for (tr = st->trans; tr; tr = next) {
 		next = tr->next;
 		free_state(tr->state);
@@ -68,6 +75,7 @@ void add_string(struct state *st, char *s)
 
 	for (i = 0; s[i]; st = nst, i++) {
 		nst = calloc(1, sizeof(*nst));
+		nst->id = ++max_id;
 		add_trans(st, nst, s[i]);
 	}
 	st->accepts = 1;
@@ -94,10 +102,12 @@ void unify_state(struct state *uniq, struct state *st)
 
 	if (last->trans)
 		unify_state(uniq, last);
-	for (tr = uniq->trans; tr; tr = tr->next)
+	for (tr = uniq->trans; tr; tr = tr->next) {
 		if (cmp_state(last, tr->state) == 0)
 			break;
+	}
 	if (tr) {
+		tr->state->indeg++;
 		free_state(st->trans->state);
 		st->trans->state = tr->state;
 	} else {
