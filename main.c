@@ -68,6 +68,16 @@ void free_state(struct state *st)
 	free(st);
 }
 
+void print_state(struct state *st)
+{
+	struct trans *tr;
+
+	for (tr = st->trans; tr; tr = tr->next)
+		printf("%d %d %c\n", st->id, tr->state->id, tr->rune);
+	for (tr = st->trans; tr; tr = tr->next)
+		print_state(tr->state);
+}
+
 void add_string(struct state *st, char *s)
 {
 	struct state *nst;
@@ -130,5 +140,6 @@ int main()
 		add_string(last, word+length);
 	}
 	unify_state(&uniq, &fsa);
+	print_state(&fsa);
 	exit(0);
 }
