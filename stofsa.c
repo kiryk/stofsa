@@ -266,14 +266,20 @@ struct state *get_last(int *last, struct state *st, int *s)
 	return st;
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+	int flag_debug = 0;
+
 	struct btree *uniq = 0; /* points to unique states */
 	struct state fsa = {.indeg = 1};  /* the FSA being built */
 	struct state *last;
 	int length;
 	int runes[128];
 	char word[128];
+
+	if (argc >= 2 && strcmp(argv[1], "-debug") == 0) {
+		flag_debug = 1;
+	}
 
 	while (scanf("%s", word) >= 0) {
 		utf8_decode(runes, word);
@@ -283,6 +289,9 @@ int main()
 		add_string(last, runes+length);
 	}
 	uniq = unify_state(uniq, &fsa);
-	print_state(&fsa);
+	if (flag_debug)
+		print_strings(&fsa, word, 0);
+	else
+		print_state(&fsa);
 	exit(0);
 }
