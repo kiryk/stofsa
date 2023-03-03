@@ -241,6 +241,18 @@ void print_state(struct state *st)
 		print_state(tr->state);
 }
 
+void print_strings(struct state *st, char *word, int idx)
+{
+	struct trans *tr;
+
+	if (st->accepts)
+		printf("%s\n", word);
+	for (tr = st->trans; tr; tr = tr->next) {
+		utf8_from_int(word+idx, tr->rune);
+		print_strings(tr->state, word, idx+strlen(word+idx));
+	}
+}
+
 struct state *get_last(int *last, struct state *st, int *s)
 {
 	struct trans *tr = st->trans;
