@@ -111,7 +111,7 @@ struct btree *btree_insert(struct btree *bt, struct state *st)
 		diff = cmp_state(st, bt->state);
 		if (diff < 0)
 			bt->less = btree_insert(bt->less, st);
-		else if (diff > 0)
+		else if (diff >= 0)
 			bt->more = btree_insert(bt->more, st);
 	}
 	return bt;
@@ -169,7 +169,7 @@ void add_trans(struct state *src, struct state *dst, int rune)
 		utf8_from_int(t, rune);
 		fprintf(stderr, "error: unsorted input data (%s = %d, %s = %d)\n",
 		        s, src->trans->rune,
-						t, rune);
+		        t, rune);
 		exit(1);
 	}
 	tr->next = src->trans;
@@ -198,6 +198,9 @@ void print_state(struct state *st)
 	struct trans *tr;
 	char utf[UtfMax];
 
+	if (st->indeg <= 0)
+		return;
+	st->indeg = 0;
 	for (tr = st->trans; tr; tr = tr->next)
 		printf("%d %d %s\n", st->id, tr->state->id, utf8_from_int(utf, tr->rune));
 	for (tr = st->trans; tr; tr = tr->next)
@@ -239,18 +242,13 @@ struct btree *unify_state(struct btree *uniq, struct state *st)
 	struct trans *tr;
 
 	if (last->trans)
-		unify_state(uniq, last);
-	/*for (tr = uniq->trans; tr; tr = tr->next) {
-		if (cmp_state(last, tr->state) == 0)
-			break;
-	}*/
+		uniq = unify_state(uniq, last);
 	same = btree_search(uniq, last);
 	if (same) {
 		same->indeg++;
 		free_state(st->trans->state);
 		st->trans->state = same;
 	} else {
-		/*add_trans(uniq, last, 0);*/
 		uniq = btree_insert(uniq, last);
 	}
 	return uniq;
@@ -259,7 +257,7 @@ struct btree *unify_state(struct btree *uniq, struct state *st)
 int main()
 {
 	struct btree *uniq = 0; /* points to unique states */
-	struct state fsa = {};  /* the FSA being built */
+	struct state fsa = {.indeg = 1};  /* the FSA being built */
 	struct state *last;
 	int length, i = 0;
 	int runes[128];
