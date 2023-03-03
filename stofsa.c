@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 
 #define UtfMax 7
@@ -59,7 +60,7 @@ int utf8_to_int(char *s)
 	while (n-- > 0) {
 		if ((*++s & 0xc0) != 0x80)
 			return -1;
-		ch = (ch << 6) | *s & 0x3f;
+		ch = (ch << 6) | (*s & 0x3f);
 	}
 
 	return ch;
@@ -92,7 +93,7 @@ char *utf8_from_int(char *s, int ch)
 
 void utf8_decode(int *runes, char *s)
 {
-	int ch, i, j;
+	int i, j;
 
 	for (i = j = 0; s[i]; i += 1+Extra(s[i]), j++)
 		runes[j] = utf8_to_int(s+i);
@@ -208,7 +209,6 @@ void add_string(struct state *st, int *s)
 struct btree *unify_state(struct btree *uniq, struct state *st)
 {
 	struct state *same, *last = st->trans->state;
-	struct trans *tr;
 
 	if (last->trans)
 		uniq = unify_state(uniq, last);
@@ -255,7 +255,6 @@ void print_strings(struct state *st, char *word, int idx)
 
 struct state *get_last(int *last, struct state *st, int *s)
 {
-	struct trans *tr = st->trans;
 	int i;
 
 	for (i = 0; s[i]; i++) {
@@ -272,7 +271,7 @@ int main()
 	struct btree *uniq = 0; /* points to unique states */
 	struct state fsa = {.indeg = 1};  /* the FSA being built */
 	struct state *last;
-	int length, i = 0;
+	int length;
 	int runes[128];
 	char word[128];
 
