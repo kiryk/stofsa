@@ -193,22 +193,6 @@ void free_state(struct state *st)
 	free(st);
 }
 
-void print_state(struct state *st)
-{
-	struct trans *tr;
-	char utf[UtfMax];
-
-	if (st->indeg <= 0)
-		return;
-	st->indeg = 0;
-	if (st->accepts)
-		printf("%d\n", st->id);
-	for (tr = st->trans; tr; tr = tr->next)
-		printf("%d %d %s\n", st->id, tr->state->id, utf8_from_int(utf, tr->rune));
-	for (tr = st->trans; tr; tr = tr->next)
-		print_state(tr->state);
-}
-
 void add_string(struct state *st, int *s)
 {
 	struct state *nst;
@@ -219,20 +203,6 @@ void add_string(struct state *st, int *s)
 		add_trans(st, nst, s[i]);
 	}
 	st->accepts = 1;
-}
-
-struct state *get_last(int *last, struct state *st, int *s)
-{
-	struct trans *tr = st->trans;
-	int i;
-
-	for (i = 0; s[i]; i++) {
-		if (!st->trans || st->trans->rune != s[i])
-			break;
-		st = st->trans->state;
-	}
-	*last = i;
-	return st;
 }
 
 struct btree *unify_state(struct btree *uniq, struct state *st)
@@ -253,6 +223,36 @@ struct btree *unify_state(struct btree *uniq, struct state *st)
 		uniq = btree_insert(uniq, last);
 	}
 	return uniq;
+}
+
+void print_state(struct state *st)
+{
+	struct trans *tr;
+	char utf[UtfMax];
+
+	if (st->indeg <= 0)
+		return;
+	st->indeg = 0;
+	if (st->accepts)
+		printf("%d\n", st->id);
+	for (tr = st->trans; tr; tr = tr->next)
+		printf("%d %d %s\n", st->id, tr->state->id, utf8_from_int(utf, tr->rune));
+	for (tr = st->trans; tr; tr = tr->next)
+		print_state(tr->state);
+}
+
+struct state *get_last(int *last, struct state *st, int *s)
+{
+	struct trans *tr = st->trans;
+	int i;
+
+	for (i = 0; s[i]; i++) {
+		if (!st->trans || st->trans->rune != s[i])
+			break;
+		st = st->trans->state;
+	}
+	*last = i;
+	return st;
 }
 
 int main()
