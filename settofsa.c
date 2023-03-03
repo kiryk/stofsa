@@ -201,6 +201,8 @@ void print_state(struct state *st)
 	if (st->indeg <= 0)
 		return;
 	st->indeg = 0;
+	if (st->accepts)
+		printf("%d\n", st->id);
 	for (tr = st->trans; tr; tr = tr->next)
 		printf("%d %d %s\n", st->id, tr->state->id, utf8_from_int(utf, tr->rune));
 	for (tr = st->trans; tr; tr = tr->next)
@@ -219,7 +221,7 @@ void add_string(struct state *st, int *s)
 	st->accepts = 1;
 }
 
-struct state *get_last(struct state *st, int *s, int *last)
+struct state *get_last(int *last, struct state *st, int *s)
 {
 	struct trans *tr = st->trans;
 	int i;
@@ -264,7 +266,7 @@ int main()
 
 	while (scanf("%s", word) >= 0) {
 		utf8_decode(runes, word);
-		last = get_last(&fsa, runes, &length);
+		last = get_last(&length, &fsa, runes);
 		if (last->trans)
 			uniq = unify_state(uniq, last);
 		add_string(last, runes+length);
