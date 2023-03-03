@@ -209,14 +209,11 @@ void print_state(struct state *st)
 
 void add_string(struct state *st, int *s)
 {
-	static int max_id = 0;
-
 	struct state *nst;
 	int i;
 
 	for (i = 0; s[i]; st = nst, i++) {
 		nst = calloc(1, sizeof(*nst));
-		nst->id = ++max_id;
 		add_trans(st, nst, s[i]);
 	}
 	st->accepts = 1;
@@ -249,6 +246,8 @@ struct btree *unify_state(struct btree *uniq, struct state *st)
 		free_state(st->trans->state);
 		st->trans->state = same;
 	} else {
+		static int max_id = 0;
+		last->id = ++max_id;
 		uniq = btree_insert(uniq, last);
 	}
 	return uniq;
