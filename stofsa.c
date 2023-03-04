@@ -43,7 +43,7 @@ struct btree {
 	struct state *state;
 };
 
-int utf8_to_int(char *s)
+int utf8_to_int(const char *s)
 {
 	int n = Extra(*s);
 	int ch;
@@ -91,7 +91,25 @@ char *utf8_from_int(char *s, int ch)
 	return s;
 }
 
-void utf8_decode(int *runes, char *s)
+int cmp_utf8(const void *pa, const void *pb)
+{
+	const char *a = *(const char**)pa;
+	const char *b = *(const char**)pb;
+	int ra = 0, rb = 0;
+
+	while (*a && *b) {
+		ra = utf8_to_int(a);
+		rb = utf8_to_int(b);
+		if (ra != rb)
+			return ra - rb;
+		a += 1+Extra(*a);
+		b += 1+Extra(*b);
+	}
+
+	return *(const unsigned char*)a - *(const unsigned char*)b;
+}
+
+void decode_utf8(int *runes, char *s)
 {
 	int i, j;
 
@@ -266,6 +284,41 @@ struct state *get_last(int *last, struct state *st, int *s)
 	return st;
 }
 
+void shuffle_wordset(char *v[], int n)
+{
+	int i, r;
+	char *swap;
+
+	for (i = n-1; i >= 0; i--) {
+		r = rand()%(i+1);
+		swap = v[r];
+		v[r] = v[i];
+		v[i] = swap;
+	}
+}
+
+char **read_wordset(int *len)
+{
+	int cap, n, i;
+	char word[128];
+	char **v = 0, *ent;
+
+	cap = 0;
+	for (i = 0; scanf("%s", word) > 0; i++) {
+		n = strlen(word);
+		ent = calloc(n+1, sizeof(*ent));
+		memcpy(ent, word, n);
+		if (i >= cap) {
+			cap = 2*cap + 1;
+			v = realloc(v, cap*sizeof(*v));
+		}
+		v[i] = ent;
+	}
+	*len = i;
+
+	return v;
+}
+
 int main(int argc, char *argv[])
 {
 	int flag_debug = 0;
@@ -273,25 +326,31 @@ int main(int argc, char *argv[])
 	struct btree *uniq = 0; /* points to unique states */
 	struct state fsa = {.indeg = 1};  /* the FSA being built */
 	struct state *last;
-	int length;
+	int i, nprefix, nwords;
 	int runes[128];
-	char word[128];
+	char **wset;
 
 	if (argc >= 2 && strcmp(argv[1], "-debug") == 0) {
 		flag_debug = 1;
 	}
 
-	while (scanf("%s", word) >= 0) {
-		utf8_decode(runes, word);
-		last = get_last(&length, &fsa, runes);
+	wset = read_wordset(&nwords);
+	shuffle_wordset(wset, nwords);
+	qsort(wset, nwords, sizeof(*wset), cmp_utf8);
+
+	for (i = 0; i < nwords; i++) {
+		decode_utf8(runes, wset[i]);
+		last = get_last(&nprefix, &fsa, runes);
 		if (last->trans)
 			uniq = unify_state(uniq, last);
-		add_string(last, runes+length);
+		add_string(last, runes+nprefix);
 	}
 	uniq = unify_state(uniq, &fsa);
-	if (flag_debug)
+	if (flag_debug) {
+		char word[128];
 		print_strings(&fsa, word, 0);
-	else
+	} else {
 		print_state(&fsa);
+	}
 	exit(0);
 }
