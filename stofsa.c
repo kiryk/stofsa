@@ -191,15 +191,6 @@ void add_trans(struct state *src, struct state *dst, int rune)
 {
 	struct trans *tr = calloc(1, sizeof(*tr));
 
-	if (src->trans && src->trans->rune > rune) {
-		char s[UtfMax], t[UtfMax];
-		utf8_from_int(s, src->trans->rune);
-		utf8_from_int(t, rune);
-		fprintf(stderr, "error: unsorted input data (%s = %d, %s = %d)\n",
-		        s, src->trans->rune,
-		        t, rune);
-		exit(1);
-	}
 	tr->next = src->trans;
 	src->trans = tr;
 	tr->rune = rune;
