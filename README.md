@@ -17,7 +17,7 @@ Compiling the tool:
 make
 ```
 
-Producing a FSA:
+Producing an FSA:
 ```
 ./stofsa < wordset.txt > fsa.txt
 ```

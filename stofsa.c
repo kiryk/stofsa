@@ -4,7 +4,7 @@
 
 #define UtfMax 7
 
-/* calculate the number of extra bytes */
+/* number of extra bytes following the first byte of an UTF-8 char */
 #define Extra(ch) ( \
 	((ch) & 0x80) == 0x00? 0 : \
 	((ch) & 0xe0) == 0xc0? 1 : \
@@ -13,7 +13,7 @@
 	((ch) & 0xfc) == 0xf8? 4 : \
 	((ch) & 0xfe) == 0xfc? 5 : -1)
 
-/* calculate the number of bytes needed to encode a character */
+/* number of bytes needed to encode a char in UTF-8 */
 #define Bytes(ch) ( \
 	(ch) <= 0x7f?       1 : \
 	(ch) <= 0x7ff?      2 : \
@@ -24,6 +24,7 @@
 
 struct state;
 struct trans;
+struct btree;
 
 struct trans {
 	struct trans *next;
@@ -43,6 +44,7 @@ struct btree {
 	struct state *state;
 };
 
+/* decode first UTF-8 char in the string into its unicode id */
 int utf8_to_int(const char *s)
 {
 	int n = Extra(*s);
@@ -66,6 +68,7 @@ int utf8_to_int(const char *s)
 	return ch;
 }
 
+/* encode unicode char in UTF-8 */
 char *utf8_from_int(char *s, int ch)
 {
 	int n = Bytes(ch);
@@ -91,6 +94,17 @@ char *utf8_from_int(char *s, int ch)
 	return s;
 }
 
+/* decode whole UTF-8 string into an array of unicode ids */
+void decode_utf8(int *runes, char *s)
+{
+	int i, j;
+
+	for (i = j = 0; s[i]; i += 1+Extra(s[i]), j++)
+		runes[j] = utf8_to_int(s+i);
+	runes[j] = 0;
+}
+
+/* compare pointers to two UTF-8 strings; used by qsort */
 int cmp_utf8(const void *pa, const void *pb)
 {
 	const char *a = *(const char**)pa;
@@ -109,15 +123,7 @@ int cmp_utf8(const void *pa, const void *pb)
 	return *(const unsigned char*)a - *(const unsigned char*)b;
 }
 
-void decode_utf8(int *runes, char *s)
-{
-	int i, j;
-
-	for (i = j = 0; s[i]; i += 1+Extra(s[i]), j++)
-		runes[j] = utf8_to_int(s+i);
-	runes[j] = 0;
-}
-
+/* insert FSA state to a binary tree */
 struct btree *btree_insert(struct btree *bt, struct state *st)
 {
 	int cmp_state(struct state *key, struct state *dat);
@@ -136,6 +142,7 @@ struct btree *btree_insert(struct btree *bt, struct state *st)
 	return bt;
 }
 
+/* check if a binary tree contains a state equivalent to the given one */
 struct state *btree_search(struct btree *bt, struct state *st)
 {
 	int cmp_state(struct state *key, struct state *dat);
@@ -152,6 +159,7 @@ struct state *btree_search(struct btree *bt, struct state *st)
 	return 0;
 }
 
+/* compare two FSA states by their right languages */
 int cmp_state(struct state *key, struct state *dat)
 {
 	struct trans *ktr = key->trans;
@@ -178,6 +186,7 @@ int cmp_state(struct state *key, struct state *dat)
 	return 0;
 }
 
+/* add a new transition to FSA */
 void add_trans(struct state *src, struct state *dst, int rune)
 {
 	struct trans *tr = calloc(1, sizeof(*tr));
@@ -198,6 +207,7 @@ void add_trans(struct state *src, struct state *dst, int rune)
 	dst->indeg++;
 }
 
+/* free a state; free its child states if it was their only parent */
 void free_state(struct state *st)
 {
 	struct trans *tr, *next;
@@ -212,6 +222,7 @@ void free_state(struct state *st)
 	free(st);
 }
 
+/* make FSA recognize a new string */
 void add_string(struct state *st, int *s)
 {
 	struct state *nst;
@@ -224,6 +235,7 @@ void add_string(struct state *st, int *s)
 	st->accepts = 1;
 }
 
+/* assure children of a state are unique in terms of their right languages */
 struct btree *unify_state(struct btree *uniq, struct state *st)
 {
 	struct state *same, *last = st->trans->state;
@@ -243,6 +255,7 @@ struct btree *unify_state(struct btree *uniq, struct state *st)
 	return uniq;
 }
 
+/* print transitions and accepting states of an FSA; corrupts the struct */
 void print_state(struct state *st)
 {
 	struct trans *tr;
@@ -259,6 +272,7 @@ void print_state(struct state *st)
 		print_state(tr->state);
 }
 
+/* print all strings recognized by FSA */
 void print_strings(struct state *st, char *word, int idx)
 {
 	struct trans *tr;
@@ -271,6 +285,7 @@ void print_strings(struct state *st, char *word, int idx)
 	}
 }
 
+/* get last state to which the string s can get in an FSA */
 struct state *get_last(int *last, struct state *st, int *s)
 {
 	int i;
@@ -284,6 +299,7 @@ struct state *get_last(int *last, struct state *st, int *s)
 	return st;
 }
 
+/* shuffle an array of words */
 void shuffle_wordset(char *v[], int n)
 {
 	int i, r;
@@ -297,6 +313,7 @@ void shuffle_wordset(char *v[], int n)
 	}
 }
 
+/* read an array of words from stdin */
 char **read_wordset(int *len)
 {
 	int cap, n, i;
@@ -335,7 +352,7 @@ int main(int argc, char *argv[])
 	}
 
 	wset = read_wordset(&nwords);
-	shuffle_wordset(wset, nwords);
+	shuffle_wordset(wset, nwords); /* no seed; we need chaos, not randomness */
 	qsort(wset, nwords, sizeof(*wset), cmp_utf8);
 
 	for (i = 0; i < nwords; i++) {
